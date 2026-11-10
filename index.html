@@ -394,6 +394,9 @@ input[type=range].sl::-moz-range-thumb{width:28px;height:28px;border:0;border-ra
     <button class="row" id="rMyN">我的昵称<span class="v" id="vMyN"></span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
     <button class="row" id="rMyId">我的 ID<span class="v" id="vMyId"></span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
     <button class="row" id="rChat">清空聊天记录<span class="v"></span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
+    <button class="row" id="fullExp">导出完整备份<span class="v">聊天 / 字卡 / 头像 / 设置</span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
+    <button class="row" id="fullImp">恢复完整备份<span class="v">从 JSON 文件恢复</span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
+    <button class="row" id="factoryReset" style="color:#ff3b30">恢复网站初始状态<span class="v">清除全部个人数据</span><svg class="c" width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 6 6-6 6"/></svg></button>
   </div>
 </div>
 
@@ -444,7 +447,7 @@ function mkDef(){
   ['想你','在忙','发呆中'].forEach((c,i)=>cards.push({id:30+i,type:'status',content:c,group:'public',enabled:true}));
   const M=(w,o)=>Object.assign({id:uid(),w,type:'text',t:T0},o);
   return{S:{name:'陆沉',id:'luchen',av:'',bg:'',br:19,th:'auto',myAv:'',myName:'我',myId:'me',myStatus:''},cfg:{...DEF_CFG},groups:[{id:'public',name:'公共（未分组）',enabled:true}],cards,seq:100,logs:[],moments:[],status:'',stAt:0,nextMom:0,letters:[],nextLet:0,
-  msgs:[M('m',{x:'测试网站 超级喜欢这个ui!'}),M('t',{x:'亲亲'}),M('t',{x:'好的'}),M('m',{x:'转账'}),M('t',{x:'想你了'}),M('t',{x:'我爱你'}),M('t',{x:'我不要'}),M('m',{type:'pay',x:5200,note:'MONTH',status:'pending',keep:1}),M('t',{x:'我不要'}),M('t',{x:'我爱你'}),M('m',{x:'我也爱你',q:['陆沉','我爱你']})]};
+  msgs:[]};
 }
 let D=mkDef(),saveT;
 const save=()=>{try{notifyScan()}catch(e){}clearTimeout(saveT);saveT=setTimeout(()=>kvSet('D',D),250)};
@@ -647,6 +650,15 @@ function applyImport(p,over){
 }
 $('cpImp').onclick=()=>{const f=document.createElement('input');f.type='file';f.accept='.json,application/json';f.onchange=()=>{const file=f.files[0];if(!file)return;const rd=new FileReader();rd.onload=()=>{try{const p=parseBackup(JSON.parse(rd.result));
   modal('导入字卡',b=>b.append(h('div','',`识别到 ${p.cards.length} 条字卡、${p.groups.length} 个分组。`)),[['取消'],['覆盖',()=>{if(confirm('清空当前字卡库并覆盖？不可撤销')){applyImport(p,true)}else return false}],['合并',()=>applyImport(p,false),'pr']])}catch(e){toast('文件格式不正确')}};rd.readAsText(file)};f.click()};
+/* ===== 完整网站备份：覆盖式恢复，包含全部图片与个人数据 ===== */
+function fullSnapshot(){return {format:'chat-full-backup',version:1,exportedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(D))}}
+$('fullExp').onclick=()=>{try{dl(fullSnapshot(),'完整网站备份_'+new Date().toISOString().slice(0,10)+'.json');toast('完整备份已导出')}catch(e){toast('备份失败：数据可能过大')}};
+$('fullImp').onclick=()=>{const f=document.createElement('input');f.type='file';f.accept='.json,application/json';f.onchange=()=>{const file=f.files&&f.files[0];if(!file)return;const rd=new FileReader();rd.onload=()=>{try{
+  const raw=JSON.parse(rd.result);if(!raw||raw.format!=='chat-full-backup'||raw.version!==1||!raw.data)throw new Error('format');
+  const x=raw.data;if(!x.S||!x.cfg||!Array.isArray(x.msgs)||!Array.isArray(x.cards)||!Array.isArray(x.groups))throw new Error('shape');
+  modal('恢复完整备份',b=>b.append(h('div','','将覆盖当前聊天记录、头像、昵称、字卡库、信件、朋友圈和全部设置。建议先导出当前完整备份。')), [['取消'],['确认恢复',()=>{D=Object.assign(mkDef(),x);D.S={...mkDef().S,...x.S};D.cfg={...DEF_CFG,...x.cfg};D.groups=x.groups;D.cards=x.cards;D.msgs=x.msgs;D.letters=Array.isArray(x.letters)?x.letters:[];D.moments=Array.isArray(x.moments)?x.moments:[];D.logs=Array.isArray(x.logs)?x.logs:[];D.seq=Number(x.seq)||100;D.nextLet=Number(x.nextLet)||0;D.nextMom=Number(x.nextMom)||0;D.cards=D.cards.filter(c=>c&&c.type!=='pat');D.msgs=D.msgs.filter(m=>m&&m.type!=='pat');clearTimeout(saveT);kvSet('D',D).then(()=>{apply();render();$('pf').classList.remove('on');toast('完整备份恢复成功')});},'pr']]);
+ }catch(e){toast('备份文件无效或版本不兼容')}};rd.readAsText(file)};f.click()};
+$('factoryReset').onclick=()=>{modal('恢复网站初始状态',b=>{b.append(h('div','','这会清除全部聊天记录、双方头像、昵称与 ID、聊天背景、字卡自定义内容、信件、朋友圈、装扮及所有设置，并恢复默认字卡和默认设置。此操作不可撤销。建议先导出完整备份。'))},[['取消'],['确认恢复默认',()=>{if(!confirm('最后确认：确定清除这个网站的全部个人数据吗？'))return false;clearTimeout(saveT);if(call){clearInterval(call.tick);clearTimeout(call.to);call=null;$('call').classList.remove('on');$('cpill').hidden=true}D=mkDef();D.msgs=[];D.moments=[];D.letters=[];D.logs=[];D.nextLet=0;D.nextMom=0;kvSet('D',D).then(()=>{apply();render();$('pf').classList.remove('on');$('sheet').classList.remove('on');$('letPage').classList.remove('on');$('letView').classList.remove('on');$('letNew').classList.remove('on');$('momPage').classList.remove('on');$('setPage').classList.remove('on');toast('已恢复网站初始状态')});},'pr']])};
 /* ===== 回复设置 ===== */
 const S_=(k,l,hint,min,max)=>({k,l,hint,t:'n',min,max,u:'秒'}),C_=(k,l,hint,min,max,u,d)=>({k,l,hint,t:'n',min,max,u:u||'条',d}),P_=(k,l,hint,d)=>({k,l,hint,t:'p',d}),B_=(k,l,hint)=>({k,l,hint,t:'b'}),M_=(k,l,hint,d)=>({k,l,hint,t:'n',min:0,max:99999,u:'元',step:10,d});
 const FIELDS=[
