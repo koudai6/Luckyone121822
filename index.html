@@ -436,7 +436,7 @@ function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clear
 const idb=()=>new Promise((ok,no)=>{const q=indexedDB.open('chatdb',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
 async function kvGet(k){try{const d=await idb();return await new Promise(r=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r()})}catch(e){}}
 async function kvSet(k,v){try{const d=await idb();d.transaction('kv','readwrite').objectStore('kv').put(v,k)}catch(e){}}
-const DEF_CFG={muteKeep:true,auto:true,minDelay:2,maxDelay:6,cardMin:1,cardMax:3,quoteProb:15,stickerProb:15,emojiProb:15,readOn:true,readProb:15,spliceOn:true,spliceProb:25,spliceMin:2,spliceMax:3,statusHours:6,statusProb:70,callProb:5,transferProb:5,xferMin:1,xferMax:520,momentPerDay:2,xferOn:true,decMin:3,decMax:10,decMulti:3,letPerDay:1,letReplyProb:80,letMin:20,letMax:120,momLikeProb:90,momCmtProb:60,momReplyProb:50,momReplyReplyProb:50};
+const DEF_CFG={muteKeep:true,auto:true,minDelay:2,maxDelay:6,cardMin:1,cardMax:3,quoteProb:15,stickerProb:15,emojiProb:15,readOn:true,readProb:15,spliceOn:true,spliceProb:25,spliceMin:2,spliceMax:3,statusHours:6,statusProb:70,callProb:5,transferProb:5,xferMin:1,xferMax:520,momentPerDay:2,xferOn:true,decMin:3,decMax:10,decMulti:3,letPerDay:1,letReplyProb:80,letMin:20,letMax:120,letCardMin:3,letCardMax:5,momLikeProb:90,momCmtProb:60,momReplyProb:50,momReplyReplyProb:50};
 const T0=new Date().setHours(10,12,0,0);
 function mkDef(){
   const tx=['嗯嗯','我在呢','想你','乖','好呀','抱抱','我爱你','想你了','亲亲'],cards=tx.map((c,i)=>({id:i+1,type:'text',content:c,group:'public',enabled:true}));
@@ -658,7 +658,7 @@ const FIELDS=[
  ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放音频，帮助浏览器保持页面运行；可单独开启静音。',[B_('notifOn','消息弹窗',''),B_('keepOn','后台保活',''),B_('muteKeep','静音保活音频','开启后保活音频音量为 0')]],
  ['转账','关闭后，加号里没有转账，对方也不会转账给你。',[B_('xferOn','开启转账',''),P_('transferProb','对方发起转账','每次回复后转账的概率','xferOn'),M_('xferMin','最小金额','','xferOn'),M_('xferMax','最大金额','','xferOn')]],
  ['决策','你发起决策后，对方会在这个时间内作答；多选时对方随机选 1 到上限项。',[S_('decMin','最快几秒回答','',1,600),S_('decMax','最慢几秒回答','',1,600),C_('decMulti','多选最多选几项','',1,8,'项')]],
- ['传信','对方的信来自字卡库里的「信件」字卡；没有信件字卡时，会用文字字卡拼成一封。',[C_('letPerDay','对方一天来信几封','填 0 就不主动来信',0,10,'封'),P_('letReplyProb','回我的信的概率','我寄出信后，对方回信的概率'),S_('letMin','回信最快几秒','',1,86400),S_('letMax','回信最慢几秒','',1,86400)]],
+ ['传信','对方来信和回信会从文字字卡中随机抽取并拼成一封；可设置每封信使用的字卡数量。',[C_('letPerDay','对方一天来信几封','填 0 就不主动来信',0,10,'封'),P_('letReplyProb','回我的信的概率','我寄出信后，对方回信的概率'),S_('letMin','回信最快几秒','',1,86400),S_('letMax','回信最慢几秒','',1,86400),C_('letCardMin','最少拼几张字卡','每封来信 / 回信至少使用多少张文字字卡',1,20,'张'),C_('letCardMax','最多拼几张字卡','每封来信 / 回信最多使用多少张文字字卡',1,20,'张')]],
  ['朋友圈','对方自己发动态，以及怎么回应你的动态和评论。点对方的评论可以回复。',[C_('momentPerDay','对方一天发几条','填 0 就不发',0,20,'条'),P_('momLikeProb','点赞我的朋友圈','我发动态后，对方点赞的概率'),P_('momCmtProb','评论我的朋友圈','我发动态后，对方评论的概率'),P_('momReplyProb','回复我的评论','我评论他的动态后，他回复的概率'),P_('momReplyReplyProb','回复我的回复','我回复他的评论后，他再回复的概率')]]];
 function deps(){document.querySelectorAll('#setBody .gr[data-d]').forEach(r=>r.classList.toggle('off',D.cfg[r.dataset.d]===false))}
 function gRow(f){
@@ -751,10 +751,15 @@ const ENV_SVG='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" strok
 const envHtml=m=>{const l=D.letters.find(x=>x.id===m.lid),mine=m.w==='m';
   return '<div class="env'+(!mine&&l&&!l.rd?' un':'')+'" data-lid="'+m.lid+'"><div class="ei">'+ENV_SVG+'</div><div class="et"><b>'+(mine?'寄出了一封信':'收到一封来信')+'</b><span>'+(l?esc(lfirst(l.x).slice(0,30)):'信件已删除')+'</span></div></div>'};
 function composeLetter(){
-  const L=pool(['letter']);if(L.length)return String(L[L.length*Math.random()|0].content).trim();
-  const T=pool(['text']);if(!T.length)return null;
-  const n=Math.min(T.length,4+Math.floor(Math.random()*3)),ss=[...T].sort(()=>Math.random()-.5).slice(0,n).map(c=>String(c.content).trim().replace(/[。！？!?…，,、；;~～\s]+$/,'')).filter(Boolean).map(x=>x+'。');
-  let o='';ss.forEach((x,i)=>{o+=x+(i%2===1&&i<ss.length-1?'\n\n':'')});return o||null;
+  const T=pool(['text']).filter(c=>String(c.content||'').trim());
+  if(!T.length){const L=pool(['letter']).filter(c=>String(c.content||'').trim());return L.length?String(L[Math.random()*L.length|0].content).trim():null}
+  const lo=Math.max(1,Math.min(20,+D.cfg.letCardMin||3));
+  const hi=Math.max(lo,Math.min(20,+D.cfg.letCardMax||5));
+  const n=Math.min(T.length,Math.floor(rnd(lo,hi+1)));
+  const picked=[...T].sort(()=>Math.random()-.5).slice(0,n);
+  const ss=picked.map(c=>String(c.content).trim().replace(/[。！？!?…，,、；;~～\s]+$/,'')).filter(Boolean);
+  let out='';ss.forEach((x,i)=>{out+=x+(i===ss.length-1?'':(i%2===1?'\n\n':'。'))});
+  return out?(/[。！？!?…]$/.test(out)?out:out+'。'):null;
 }
 function newLetterFrom(re){
   const body=composeLetter();if(!body)return null;
@@ -985,8 +990,9 @@ function startKeep(){
   if(kaEl){kaEl.play().catch(()=>{});return}
   const n=8000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,s)=>[...s].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
   W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,8000,true);v.setUint16(32,1,true);v.setUint16(34,8,true);W(36,'data');v.setUint32(40,n,true);
-  for(let i=0;i<n;i++)b[44+i]=128+(i%2?1:-1);
-  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=D.cfg.muteKeep!==false?0:.02;
+  /* 低频、极低振幅的平滑波形，避免原先交替采样产生刺耳高频声 */
+  for(let i=0;i<n;i++)b[44+i]=128+Math.round(Math.sin(2*Math.PI*80*i/8000));
+  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=D.cfg.muteKeep!==false?0:.001;
   kaEl.play().catch(()=>{});
   if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:'聊天',artist:'保持在线',artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]});navigator.mediaSession.setActionHandler('pause',()=>{});}
 }
@@ -994,7 +1000,7 @@ function stopKeep(){if(kaEl)kaEl.pause();if('mediaSession' in navigator)navigato
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&kaEl&&kaEl.paused&&D.cfg.keepOn!==false)kaEl.play().catch(()=>{})});
 window.cfgHook=k=>{
   if(k==='keepOn'){if(D.cfg.keepOn===false){stopKeep();toast('后台保活已关闭')}else{startKeep();toast('后台保活已开启')}}
-  if(k==='muteKeep'){if(kaEl)kaEl.volume=D.cfg.muteKeep!==false?0:.02;toast(D.cfg.muteKeep!==false?'保活音频已静音':'已恢复保活音频音量')}
+  if(k==='muteKeep'){if(kaEl)kaEl.volume=D.cfg.muteKeep!==false?0:.001;toast(D.cfg.muteKeep!==false?'保活音频已静音':'已恢复保活音频音量')}
   if(k==='notifOn'){
     if(D.cfg.notifOn===false){toast('消息弹窗已关闭');return}
     if(!('Notification' in window)){toast('当前浏览器不支持通知');return}
