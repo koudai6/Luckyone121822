@@ -669,7 +669,7 @@ const FIELDS=[
  ['拼字卡','几张文字字卡拼成一条长消息。',[B_('spliceOn','开启拼字卡',''),P_('spliceProb','拼字卡的概率','每条文字回复是否拼接','spliceOn'),C_('spliceMin','一次最少拼几句','',2,8,'句','spliceOn'),C_('spliceMax','一次最多拼几句','',2,8,'句','spliceOn')]],
  ['状态字卡','头像右上角的小气泡，由对方自己更换。到点后再按概率决定换不换，100% 就是每次必换。',[C_('statusHours','几小时换一次','',1,48,'小时'),P_('statusProb','到点真的换的概率','')]],
  ['通话','普通语音通话，接通后对方不会发字卡。',[P_('callProb','对方主动来电','每次回复后来电的概率')]],
- ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放音频，帮助浏览器保持页面运行；可单独开启静音。',[B_('notifOn','消息弹窗',''),B_('keepOn','后台保活',''),B_('muteKeep','静音保活音频','开启后保活音频音量为 0')]],
+ ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),B_('keepOn','后台保活','')]],
  ['转账','关闭后，加号里没有转账，对方也不会转账给你。',[B_('xferOn','开启转账',''),P_('transferProb','对方发起转账','每次回复后转账的概率','xferOn'),M_('xferMin','最小金额','','xferOn'),M_('xferMax','最大金额','','xferOn')]],
  ['决策','你发起决策后，对方会在这个时间内作答；多选时对方随机选 1 到上限项。',[S_('decMin','最快几秒回答','',1,600),S_('decMax','最慢几秒回答','',1,600),C_('decMulti','多选最多选几项','',1,8,'项')]],
  ['传信','对方来信和回信会从文字字卡中随机抽取并拼成一封；可设置每封信使用的字卡数量。',[C_('letPerDay','对方一天来信几封','填 0 就不主动来信',0,10,'封'),P_('letReplyProb','回我的信的概率','我寄出信后，对方回信的概率'),S_('letMin','回信最快几秒','',1,86400),S_('letMax','回信最慢几秒','',1,86400),C_('letCardMin','最少拼几张字卡','每封来信 / 回信至少使用多少张文字字卡',1,20,'张'),C_('letCardMax','最多拼几张字卡','每封来信 / 回信最多使用多少张文字字卡',1,20,'张')]],
@@ -983,8 +983,9 @@ function showN(title,body,tag){
   if(D&&D.cfg&&D.cfg.notifOn===false)return;
   if(!('Notification' in window)||Notification.permission!=='granted')return;
   const o={body,tag:tag||'msg',renotify:true,icon:'icons/icon-192.png',badge:'icons/icon-192.png',vibrate:[120,60,120]};
-  if(swReg&&swReg.showNotification)swReg.showNotification(title,o).catch(()=>{});
-  else try{new Notification(title,o)}catch(e){}
+  const fb=()=>{try{new Notification(title,o)}catch(e){}};
+  if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>r.showNotification(title,o)).catch(fb);
+  else fb();
 }
 function notifyScan(){
   if(typeof D==='undefined'||!D||!D.msgs)return;
@@ -1002,11 +1003,10 @@ let kaEl=null;
 function startKeep(){
   if(D&&D.cfg&&D.cfg.keepOn===false)return;
   if(kaEl){kaEl.play().catch(()=>{});return}
-  const n=8000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,s)=>[...s].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
-  W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,8000,true);v.setUint16(32,1,true);v.setUint16(34,8,true);W(36,'data');v.setUint32(40,n,true);
-  /* 低频、极低振幅的平滑波形，避免原先交替采样产生刺耳高频声 */
-  for(let i=0;i<n;i++)b[44+i]=128+Math.round(Math.sin(2*Math.PI*80*i/8000));
-  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=D.cfg.muteKeep!==false?0:.001;
+  /* 纯数字静音（16-bit 全 0）：不会有任何声音；音量保持 1，iOS/安卓才会把它当作正在播放的音频 */
+  const n=48000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
+  W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);W(36,'data');v.setUint32(40,n,true);
+  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=1;
   kaEl.play().catch(()=>{});
   if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:'聊天',artist:'保持在线',artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]});navigator.mediaSession.setActionHandler('pause',()=>{});}
 }
@@ -1014,20 +1014,21 @@ function stopKeep(){if(kaEl)kaEl.pause();if('mediaSession' in navigator)navigato
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&kaEl&&kaEl.paused&&D.cfg.keepOn!==false)kaEl.play().catch(()=>{})});
 window.cfgHook=k=>{
   if(k==='keepOn'){if(D.cfg.keepOn===false){stopKeep();toast('后台保活已关闭')}else{startKeep();toast('后台保活已开启')}}
-  if(k==='muteKeep'){if(kaEl)kaEl.volume=D.cfg.muteKeep!==false?0:.001;toast(D.cfg.muteKeep!==false?'保活音频已静音':'已恢复保活音频音量')}
   if(k==='notifOn'){
     if(D.cfg.notifOn===false){toast('消息弹窗已关闭');return}
     if(!('Notification' in window)){toast('当前浏览器不支持通知');return}
-    if(Notification.permission==='granted')toast('消息弹窗已开启');
+    if(Notification.permission==='granted'){toast('消息弹窗已开启');showN('消息弹窗','测试通知：能看到这条就说明弹窗正常','test')}
     else if(Notification.permission==='denied')toast('通知被系统禁止，请在浏览器的网站设置里允许');
-    else Notification.requestPermission().then(p=>toast(p==='granted'?'消息弹窗已开启':'没有获得通知权限'))
+    else Notification.requestPermission().then(p=>{toast(p==='granted'?'消息弹窗已开启':'没有获得通知权限');if(p==='granted')showN('消息弹窗','测试通知：能看到这条就说明弹窗正常','test')})
   }
 };
 /* 首次点击：申请通知权限、启动保活、进入全屏 */
 let firstTap=false;
+let askedN=false;
+function askNotif(){if(askedN)return;if(D.cfg.notifOn===false||!('Notification' in window)||Notification.permission!=='default')return;askedN=true;try{Notification.requestPermission().catch(()=>{})}catch(e){}}
+document.addEventListener('click',askNotif,{passive:true});document.addEventListener('touchend',askNotif,{passive:true});
 document.addEventListener('pointerdown',()=>{
   if(firstTap)return;firstTap=true;
-  if(D.cfg.notifOn!==false&&'Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});
   startKeep();
   const std=matchMedia('(display-mode: fullscreen)').matches||matchMedia('(display-mode: standalone)').matches;
   if(!std&&R.requestFullscreen)R.requestFullscreen({navigationUI:'hide'}).catch(()=>{});
