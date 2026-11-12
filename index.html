@@ -680,7 +680,7 @@ function deps(){document.querySelectorAll('#setBody .gr[data-d]').forEach(r=>r.c
 function gRow(f){
   const v=D.cfg[f.k],lab=h('div','gl',f.l);if(f.hint)lab.append(h('small','',f.hint));
   if(f.t==='b'){const r=h('div','gr'),b=h('button','sw'+(v!==false?' on':''));b.setAttribute('role','switch');b.onclick=()=>{D.cfg[f.k]=!(D.cfg[f.k]!==false);b.classList.toggle('on',D.cfg[f.k]);save();deps();if(window.cfgHook)cfgHook(f.k)};r.append(lab,b);return r}
-  if(f.t==='a'){const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(window.testNotif)testNotif()};r.append(lab,b);return r}
+  if(f.t==='a'){if(window.nStatus){lab.querySelector('small').textContent='状态：'+nStatus()+'。点一下后立刻锁屏，几秒后应收到通知'}const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(window.testNotif)testNotif()};r.append(lab,b);return r}
   if(f.t==='p'){const r=h('div','gr col'),t=h('div','top'),pv=h('span','pv',v+'%'),sl=h('input','sl');sl.type='range';sl.min=0;sl.max=100;sl.step=5;sl.value=v;sl.style.setProperty('--p',v+'%');
     sl.oninput=()=>{D.cfg[f.k]=+sl.value;pv.textContent=sl.value+'%';sl.style.setProperty('--p',sl.value+'%');save()};t.append(lab,pv);r.append(t,sl);if(f.d)r.dataset.d=f.d;return r}
   const r=h('div','gr'),st=h('div','stp'),vb=h('button','stv'),bx=h('div','stb'),m=h('button','','−'),p=h('button','','+'),step=f.step||1;
@@ -987,7 +987,7 @@ function showN(title,body,tag){
   if(!('Notification' in window)||Notification.permission!=='granted')return;
   const o={body,tag:tag||'msg',renotify:true,icon:'icons/icon-192.png',badge:'icons/icon-192.png',vibrate:[120,60,120]};
   const fb=()=>{try{new Notification(title,o)}catch(e){}};
-  if('serviceWorker' in navigator)navigator.serviceWorker.ready.then(r=>r.showNotification(title,o)).catch(fb);
+  if('serviceWorker' in navigator)getReg().then(r=>r.showNotification(title,o)).catch(fb);
   else fb();
 }
 function notifyScan(){
@@ -998,16 +998,23 @@ function notifyScan(){
   if(!document.hidden)return;
   const m=fresh[fresh.length-1],nm=(D.S&&D.S.name)||'新消息';
   const body={sticker:'[表情包]',image:'[图片]',pay:'[转账]',letter:'[来信]'}[m.type]||String(m.x||'发来一条消息').slice(0,60);
-  showN(nm,fresh.length>1?'['+fresh.length+'条] '+body:body,'msg');
+  const bd=fresh.length>1?'['+fresh.length+'条] '+body:body;setLock(nm,bd);showN(nm,bd,'msg');
 }
 (function(){const _i=incoming;incoming=function(){if(document.hidden)showN((D.S&&D.S.name)||'来电','邀请你语音通话','call');return _i.apply(this,arguments)}})();
+function nStatus(){
+  if(!('Notification' in window))return '不支持（需从主屏幕图标打开，iOS 16.4 以上）';
+  return ({granted:'已允许',denied:'已禁止',default:'还没授权'})[Notification.permission]+' / '+(swReg&&swReg.active?'后台服务正常':'后台服务未就绪');
+}
+function getReg(){return Promise.race([navigator.serviceWorker.ready,new Promise((_,j)=>setTimeout(()=>j(new Error('后台服务未就绪')),4000))])}
+/* 锁屏兜底：把新消息写进锁屏的播放卡片 */
+function setLock(t,a){if(!('mediaSession' in navigator)||typeof MediaMetadata==='undefined')return;try{navigator.mediaSession.metadata=new MediaMetadata({title:t,artist:a,artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]})}catch(e){}}
 async function testNotif(){
   if(!('Notification' in window)){toast('这里不支持通知：iOS 需 16.4 以上，并且要从主屏幕图标打开');return}
   let p=Notification.permission;
   if(p==='default'){try{p=await Notification.requestPermission()}catch(e){}}
   if(p!=='granted'){toast(p==='denied'?'通知被禁止：到 系统设置 > 通知 里找到这个网站并打开':'没有获得通知权限');return}
   toast('5 秒内请锁屏，会收到一条测试通知');
-  setTimeout(()=>{navigator.serviceWorker.ready.then(r=>r.showNotification('测试通知','能看到这条，说明弹窗正常',{tag:'test',icon:'icons/icon-192.png'})).catch(e=>toast('发送失败：'+((e&&e.message)||e)))},5000);
+  setTimeout(()=>{getReg().then(r=>r.showNotification('测试通知','能看到这条，说明弹窗正常',{tag:'test',icon:'icons/icon-192.png'})).catch(e=>toast('发送失败：'+((e&&e.message)||e)))},5000);
 }
 /* 保活：循环播放近乎无声的音频，让安卓浏览器不冻结页面 */
 let kaEl=null;
@@ -1022,7 +1029,7 @@ function startKeep(){
   if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:'聊天',artist:'保持在线',artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]});navigator.mediaSession.setActionHandler('pause',()=>{});}
 }
 function stopKeep(){if(kaEl)kaEl.pause();if('mediaSession' in navigator)navigator.mediaSession.metadata=null}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&kaEl&&kaEl.paused&&D.cfg.keepOn!==false)kaEl.play().catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){setLock('聊天','保持在线');if(kaEl&&kaEl.paused&&D.cfg.keepOn!==false)kaEl.play().catch(()=>{})}});
 window.cfgHook=k=>{
   if(k==='keepOn'){if(D.cfg.keepOn===false){stopKeep();toast('后台保活已关闭')}else{startKeep();toast('后台保活已开启')}}
   if(k==='notifOn'){

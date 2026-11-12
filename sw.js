@@ -1,5 +1,5 @@
-const C='chat-v12-zoom-test',F=['./','./index.html','./manifest.webmanifest','./apple-touch-icon-v2.png','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-167.png','./icons/icon-152.png'];
-self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)).then(()=>self.skipWaiting()))});
+const C='chat-v13-notif-diag',F=['./','./index.html','./manifest.webmanifest','./apple-touch-icon-v2.png','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-167.png','./icons/icon-152.png'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>Promise.all(F.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
