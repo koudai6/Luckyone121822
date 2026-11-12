@@ -1030,7 +1030,7 @@ function startKeep(){
   if(D&&D.cfg&&D.cfg.keepOn===false)return;
   if(kaEl){kaEl.play().catch(()=>{});setLock(kTitle(),'在线');return}
   /* 16-bit、幅度仅 ±1（约 -90dB），人耳听不到，但系统会把它当成正在播放的音频 */
-  const n=16000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
+  const n=1600,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
   W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);W(36,'data');v.setUint32(40,n,true);
   for(let i=0;i<n/2;i++)v.setInt16(44+i*2,i%2?1:-1,true);
   kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=1;kaEl.setAttribute('playsinline','');
