@@ -671,7 +671,7 @@ const FIELDS=[
  ['拼字卡','几张文字字卡拼成一条长消息。',[B_('spliceOn','开启拼字卡',''),P_('spliceProb','拼字卡的概率','每条文字回复是否拼接','spliceOn'),C_('spliceMin','一次最少拼几句','',2,8,'句','spliceOn'),C_('spliceMax','一次最多拼几句','',2,8,'句','spliceOn')]],
  ['状态字卡','头像右上角的小气泡，由对方自己更换。到点后再按概率决定换不换，100% 就是每次必换。',[C_('statusHours','几小时换一次','',1,48,'小时'),P_('statusProb','到点真的换的概率','')]],
  ['通话','普通语音通话，接通后对方不会发字卡。',[P_('callProb','对方主动来电','每次回复后来电的概率')]],
- ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),{k:'testN',l:'发送测试通知',hint:'点一下立刻锁屏，几秒后应收到一条通知',t:'a'},B_('keepOn','后台保活','')]],
+ ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),{k:'testN',l:'测试通知',hint:'点一下立刻锁屏，5 秒后应收到一条通知',t:'a'},{k:'fullN',l:'全链路测试',hint:'点一下立刻锁屏，10 秒后对方发消息，应弹通知',t:'a'},B_('keepOn','后台保活','')]],
  ['转账','关闭后，加号里没有转账，对方也不会转账给你。',[B_('xferOn','开启转账',''),P_('transferProb','对方发起转账','每次回复后转账的概率','xferOn'),M_('xferMin','最小金额','','xferOn'),M_('xferMax','最大金额','','xferOn')]],
  ['决策','你发起决策后，对方会在这个时间内作答；多选时对方随机选 1 到上限项。',[S_('decMin','最快几秒回答','',1,600),S_('decMax','最慢几秒回答','',1,600),C_('decMulti','多选最多选几项','',1,8,'项')]],
  ['传信','对方来信和回信会从文字字卡中随机抽取并拼成一封；可设置每封信使用的字卡数量。',[C_('letPerDay','对方一天来信几封','填 0 就不主动来信',0,10,'封'),P_('letReplyProb','回我的信的概率','我寄出信后，对方回信的概率'),S_('letMin','回信最快几秒','',1,86400),S_('letMax','回信最慢几秒','',1,86400),C_('letCardMin','最少拼几张字卡','每封来信 / 回信至少使用多少张文字字卡',1,20,'张'),C_('letCardMax','最多拼几张字卡','每封来信 / 回信最多使用多少张文字字卡',1,20,'张')]],
@@ -680,7 +680,7 @@ function deps(){document.querySelectorAll('#setBody .gr[data-d]').forEach(r=>r.c
 function gRow(f){
   const v=D.cfg[f.k],lab=h('div','gl',f.l);if(f.hint)lab.append(h('small','',f.hint));
   if(f.t==='b'){const r=h('div','gr'),b=h('button','sw'+(v!==false?' on':''));b.setAttribute('role','switch');b.onclick=()=>{D.cfg[f.k]=!(D.cfg[f.k]!==false);b.classList.toggle('on',D.cfg[f.k]);save();deps();if(window.cfgHook)cfgHook(f.k)};r.append(lab,b);return r}
-  if(f.t==='a'){if(window.nStatus){lab.querySelector('small').textContent='状态：'+nStatus()+'。点一下后立刻锁屏，几秒后应收到通知'}const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(window.testNotif)testNotif()};r.append(lab,b);return r}
+  if(f.t==='a'){if(window.nStatus){lab.querySelector('small').textContent='状态：'+nStatus()+(f.k==='testN'?'。点一下立刻锁屏，5 秒后应收到一条通知':'。点一下立刻锁屏，10 秒后对方发消息，应弹通知')}const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(f.k==='fullN'){if(window.fullTest)fullTest()}else if(window.testNotif)testNotif()};r.append(lab,b);return r}
   if(f.t==='p'){const r=h('div','gr col'),t=h('div','top'),pv=h('span','pv',v+'%'),sl=h('input','sl');sl.type='range';sl.min=0;sl.max=100;sl.step=5;sl.value=v;sl.style.setProperty('--p',v+'%');
     sl.oninput=()=>{D.cfg[f.k]=+sl.value;pv.textContent=sl.value+'%';sl.style.setProperty('--p',sl.value+'%');save()};t.append(lab,pv);r.append(t,sl);if(f.d)r.dataset.d=f.d;return r}
   const r=h('div','gr'),st=h('div','stp'),vb=h('button','stv'),bx=h('div','stb'),m=h('button','','−'),p=h('button','','+'),step=f.step||1;
@@ -982,13 +982,14 @@ $('mm').addEventListener('click',e=>{if(e.target===$('mm'))$('mm').classList.rem
 /* ===== PWA：通知 / 保活 / 全屏 ===== */
 let swReg=null,nSeenT=Date.now();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(r=>{swReg=r}).catch(()=>{});
-function showN(title,body,tag){
-  if(D&&D.cfg&&D.cfg.notifOn===false)return;
+async function showN(title,body,tag,force){
+  if(!force&&D&&D.cfg&&D.cfg.notifOn===false)return;
   if(!('Notification' in window)||Notification.permission!=='granted')return;
-  const o={body,tag:tag||'msg',renotify:true,icon:'icons/icon-192.png',badge:'icons/icon-192.png',vibrate:[120,60,120]};
-  const fb=()=>{try{new Notification(title,o)}catch(e){}};
-  if('serviceWorker' in navigator)getReg().then(r=>r.showNotification(title,o)).catch(fb);
-  else fb();
+  try{
+    const reg=await navigator.serviceWorker.getRegistration();
+    const o={body,icon:'icons/icon-192.png',badge:'icons/icon-192.png'};if(tag)o.tag=tag;
+    if(reg&&reg.showNotification)await reg.showNotification(title,o);else new Notification(title,o);
+  }catch(e){}
 }
 function notifyScan(){
   if(typeof D==='undefined'||!D||!D.msgs)return;
@@ -998,9 +999,9 @@ function notifyScan(){
   if(!document.hidden)return;
   const m=fresh[fresh.length-1],nm=(D.S&&D.S.name)||'新消息';
   const body={sticker:'[表情包]',image:'[图片]',pay:'[转账]',letter:'[来信]'}[m.type]||String(m.x||'发来一条消息').slice(0,60);
-  const bd=fresh.length>1?'['+fresh.length+'条] '+body:body;setLock(nm,bd);showN(nm,bd,'msg');
+  const bd=fresh.length>1?'['+fresh.length+'条] '+body:body;setLock(nm,bd);showN(nm,bd);
 }
-(function(){const _i=incoming;incoming=function(){if(document.hidden)showN((D.S&&D.S.name)||'来电','邀请你语音通话','call');return _i.apply(this,arguments)}})();
+(function(){const _i=incoming;incoming=function(){if(document.hidden)showN((D.S&&D.S.name)||'来电','邀请你语音通话');return _i.apply(this,arguments)}})();
 function nStatus(){
   if(!('Notification' in window))return '不支持（需从主屏幕图标打开，iOS 16.4 以上）';
   return ({granted:'已允许',denied:'已禁止',default:'还没授权'})[Notification.permission]+' / '+(swReg&&swReg.active?'后台服务正常':'后台服务未就绪');
@@ -1011,22 +1012,29 @@ function setLock(t,a){if(!('mediaSession' in navigator)||typeof MediaMetadata===
 async function testNotif(){
   if(!('Notification' in window)){toast('这里不支持通知：iOS 需 16.4 以上，并且要从主屏幕图标打开');return}
   let p=Notification.permission;
-  if(p==='default'){try{p=await Notification.requestPermission()}catch(e){}}
+  if(p!=='granted'){try{p=await Notification.requestPermission()}catch(e){p='denied'}}
   if(p!=='granted'){toast(p==='denied'?'通知被禁止：到 系统设置 > 通知 里找到这个网站并打开':'没有获得通知权限');return}
   toast('5 秒内请锁屏，会收到一条测试通知');
-  setTimeout(()=>{getReg().then(r=>r.showNotification('测试通知','能看到这条，说明弹窗正常',{tag:'test',icon:'icons/icon-192.png'})).catch(e=>toast('发送失败：'+((e&&e.message)||e)))},5000);
+  setTimeout(()=>showN((D.S&&D.S.name)||'聊天','这是一条测试通知','test',true),5000);
+}
+async function fullTest(){
+  if(!('Notification' in window)||Notification.permission!=='granted'){await testNotif();return}
+  toast('10 秒后对方会发消息，请现在锁屏');
+  setTimeout(()=>{if(typeof busy!=='undefined'&&busy)return;reply()},10000);
 }
 /* 保活：循环播放近乎无声的音频，让安卓浏览器不冻结页面 */
 let kaEl=null;
 function startKeep(){
   if(D&&D.cfg&&D.cfg.keepOn===false)return;
-  if(kaEl){kaEl.play().catch(()=>{});return}
-  /* 纯数字静音（16-bit 全 0）：不会有任何声音；音量保持 1，iOS/安卓才会把它当作正在播放的音频 */
+  if(kaEl){kaEl.play().catch(()=>{});setLock('聊天','保持在线');return}
+  /* 16-bit、幅度仅 ±1（约 -90dB），人耳听不到，但系统会把它当成正在播放的音频 */
   const n=48000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
   W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);W(36,'data');v.setUint32(40,n,true);
-  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=1;
+  for(let i=0;i<n/2;i++)v.setInt16(44+i*2,i%2?1:-1,true);
+  kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=1;kaEl.setAttribute('playsinline','');
+  kaEl.addEventListener('pause',()=>{if(D.cfg.keepOn!==false&&document.hidden)setTimeout(()=>{kaEl.play().catch(()=>{})},300)});
   kaEl.play().catch(()=>{});
-  if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:'聊天',artist:'保持在线',artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]});navigator.mediaSession.setActionHandler('pause',()=>{});}
+  if('mediaSession' in navigator){setLock('聊天','保持在线');try{navigator.mediaSession.playbackState='playing';['play','pause'].forEach(a=>navigator.mediaSession.setActionHandler(a,()=>{if(kaEl)kaEl.play().catch(()=>{})}))}catch(e){}}
 }
 function stopKeep(){if(kaEl)kaEl.pause();if('mediaSession' in navigator)navigator.mediaSession.metadata=null}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){setLock('聊天','保持在线');if(kaEl&&kaEl.paused&&D.cfg.keepOn!==false)kaEl.play().catch(()=>{})}});
