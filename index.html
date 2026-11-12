@@ -1009,7 +1009,7 @@ function nStatus(){
 function getReg(){return Promise.race([navigator.serviceWorker.ready,new Promise((_,j)=>setTimeout(()=>j(new Error('后台服务未就绪')),4000))])}
 /* 锁屏兜底：把新消息写进锁屏的播放卡片 */
 const kTitle=()=>(D&&D.S&&D.S.id)||'聊天';
-const nBody=b=>'from '+kTitle()+'\n'+b;
+const nBody=b=>b;
 function setLock(t,a){if(!('mediaSession' in navigator)||typeof MediaMetadata==='undefined')return;try{navigator.mediaSession.metadata=new MediaMetadata({title:t,artist:a,artwork:[{src:'icons/icon-512.png',sizes:'512x512',type:'image/png'}]})}catch(e){}}
 async function testNotif(){
   if(!('Notification' in window)){toast('这里不支持通知：iOS 需 16.4 以上，并且要从主屏幕图标打开');return}
@@ -1030,11 +1030,14 @@ function startKeep(){
   if(D&&D.cfg&&D.cfg.keepOn===false)return;
   if(kaEl){kaEl.play().catch(()=>{});setLock(kTitle(),'在线');return}
   /* 16-bit、幅度仅 ±1（约 -90dB），人耳听不到，但系统会把它当成正在播放的音频 */
-  const n=1600,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
+  const n=16000,b=new Uint8Array(44+n),v=new DataView(b.buffer),W=(o,t)=>[...t].forEach((c,i)=>b[o+i]=c.charCodeAt(0));
   W(0,'RIFF');v.setUint32(4,36+n,true);W(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);W(36,'data');v.setUint32(40,n,true);
   for(let i=0;i<n/2;i++)v.setInt16(44+i*2,i%2?1:-1,true);
   kaEl=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));kaEl.loop=true;kaEl.volume=1;kaEl.setAttribute('playsinline','');
   kaEl.addEventListener('pause',()=>{if(D.cfg.keepOn!==false&&document.hidden)setTimeout(()=>{kaEl.play().catch(()=>{})},300)});
+  kaEl.addEventListener('play',()=>setLock(kTitle(),'在线'));
+  kaEl.addEventListener('ended',()=>{kaEl.play().catch(()=>{})});
+  setInterval(()=>{if(kaEl&&kaEl.paused&&D.cfg.keepOn!==false&&document.hidden)kaEl.play().catch(()=>{})},4000);
   kaEl.play().catch(()=>{});
   if('mediaSession' in navigator){setLock(kTitle(),'在线');try{navigator.mediaSession.playbackState='playing';['play','pause'].forEach(a=>navigator.mediaSession.setActionHandler(a,()=>{if(kaEl)kaEl.play().catch(()=>{})}))}catch(e){}}
 }
