@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
@@ -352,6 +352,8 @@ input[type=range].sl::-moz-range-thumb{width:28px;height:28px;border:0;border-ra
 .skc{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(120,120,128,.6);background:var(--bg)}
 .st.sel .skc{background:var(--ink);border-color:var(--ink)}
 .st.sel .skc::after{content:"";position:absolute;left:6px;top:2.5px;width:4px;height:8px;border:solid var(--bg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+html,body{touch-action:manipulation;-webkit-text-size-adjust:100%}
+input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,select{font-size:16px!important}
 </style>
 </head>
 <body>
@@ -669,7 +671,7 @@ const FIELDS=[
  ['拼字卡','几张文字字卡拼成一条长消息。',[B_('spliceOn','开启拼字卡',''),P_('spliceProb','拼字卡的概率','每条文字回复是否拼接','spliceOn'),C_('spliceMin','一次最少拼几句','',2,8,'句','spliceOn'),C_('spliceMax','一次最多拼几句','',2,8,'句','spliceOn')]],
  ['状态字卡','头像右上角的小气泡，由对方自己更换。到点后再按概率决定换不换，100% 就是每次必换。',[C_('statusHours','几小时换一次','',1,48,'小时'),P_('statusProb','到点真的换的概率','')]],
  ['通话','普通语音通话，接通后对方不会发字卡。',[P_('callProb','对方主动来电','每次回复后来电的概率')]],
- ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),B_('keepOn','后台保活','')]],
+ ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),{k:'testN',l:'发送测试通知',hint:'点一下立刻锁屏，几秒后应收到一条通知',t:'a'},B_('keepOn','后台保活','')]],
  ['转账','关闭后，加号里没有转账，对方也不会转账给你。',[B_('xferOn','开启转账',''),P_('transferProb','对方发起转账','每次回复后转账的概率','xferOn'),M_('xferMin','最小金额','','xferOn'),M_('xferMax','最大金额','','xferOn')]],
  ['决策','你发起决策后，对方会在这个时间内作答；多选时对方随机选 1 到上限项。',[S_('decMin','最快几秒回答','',1,600),S_('decMax','最慢几秒回答','',1,600),C_('decMulti','多选最多选几项','',1,8,'项')]],
  ['传信','对方来信和回信会从文字字卡中随机抽取并拼成一封；可设置每封信使用的字卡数量。',[C_('letPerDay','对方一天来信几封','填 0 就不主动来信',0,10,'封'),P_('letReplyProb','回我的信的概率','我寄出信后，对方回信的概率'),S_('letMin','回信最快几秒','',1,86400),S_('letMax','回信最慢几秒','',1,86400),C_('letCardMin','最少拼几张字卡','每封来信 / 回信至少使用多少张文字字卡',1,20,'张'),C_('letCardMax','最多拼几张字卡','每封来信 / 回信最多使用多少张文字字卡',1,20,'张')]],
@@ -678,6 +680,7 @@ function deps(){document.querySelectorAll('#setBody .gr[data-d]').forEach(r=>r.c
 function gRow(f){
   const v=D.cfg[f.k],lab=h('div','gl',f.l);if(f.hint)lab.append(h('small','',f.hint));
   if(f.t==='b'){const r=h('div','gr'),b=h('button','sw'+(v!==false?' on':''));b.setAttribute('role','switch');b.onclick=()=>{D.cfg[f.k]=!(D.cfg[f.k]!==false);b.classList.toggle('on',D.cfg[f.k]);save();deps();if(window.cfgHook)cfgHook(f.k)};r.append(lab,b);return r}
+  if(f.t==='a'){const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(window.testNotif)testNotif()};r.append(lab,b);return r}
   if(f.t==='p'){const r=h('div','gr col'),t=h('div','top'),pv=h('span','pv',v+'%'),sl=h('input','sl');sl.type='range';sl.min=0;sl.max=100;sl.step=5;sl.value=v;sl.style.setProperty('--p',v+'%');
     sl.oninput=()=>{D.cfg[f.k]=+sl.value;pv.textContent=sl.value+'%';sl.style.setProperty('--p',sl.value+'%');save()};t.append(lab,pv);r.append(t,sl);if(f.d)r.dataset.d=f.d;return r}
   const r=h('div','gr'),st=h('div','stp'),vb=h('button','stv'),bx=h('div','stb'),m=h('button','','−'),p=h('button','','+'),step=f.step||1;
@@ -998,6 +1001,14 @@ function notifyScan(){
   showN(nm,fresh.length>1?'['+fresh.length+'条] '+body:body,'msg');
 }
 (function(){const _i=incoming;incoming=function(){if(document.hidden)showN((D.S&&D.S.name)||'来电','邀请你语音通话','call');return _i.apply(this,arguments)}})();
+async function testNotif(){
+  if(!('Notification' in window)){toast('这里不支持通知：iOS 需 16.4 以上，并且要从主屏幕图标打开');return}
+  let p=Notification.permission;
+  if(p==='default'){try{p=await Notification.requestPermission()}catch(e){}}
+  if(p!=='granted'){toast(p==='denied'?'通知被禁止：到 系统设置 > 通知 里找到这个网站并打开':'没有获得通知权限');return}
+  toast('5 秒内请锁屏，会收到一条测试通知');
+  setTimeout(()=>{navigator.serviceWorker.ready.then(r=>r.showNotification('测试通知','能看到这条，说明弹窗正常',{tag:'test',icon:'icons/icon-192.png'})).catch(e=>toast('发送失败：'+((e&&e.message)||e)))},5000);
+}
 /* 保活：循环播放近乎无声的音频，让安卓浏览器不冻结页面 */
 let kaEl=null;
 function startKeep(){
@@ -1023,6 +1034,7 @@ window.cfgHook=k=>{
   }
 };
 /* 首次点击：申请通知权限、启动保活、进入全屏 */
+['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target&&e.target.closest&&e.target.closest('#vw'))return;e.preventDefault()},{passive:false}));
 let firstTap=false;
 let askedN=false;
 function askNotif(){if(askedN)return;if(D.cfg.notifOn===false||!('Notification' in window)||Notification.permission!=='default')return;askedN=true;try{Notification.requestPermission().catch(()=>{})}catch(e){}}
