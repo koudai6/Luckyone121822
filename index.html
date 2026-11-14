@@ -443,7 +443,7 @@ function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clear
 const idb=()=>new Promise((ok,no)=>{const q=indexedDB.open('chatdb',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
 async function kvGet(k){try{const d=await idb();return await new Promise(r=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r()})}catch(e){}}
 async function kvSet(k,v){try{const d=await idb();d.transaction('kv','readwrite').objectStore('kv').put(v,k)}catch(e){}}
-const DEF_CFG={muteKeep:true,auto:true,minDelay:2,maxDelay:6,cardMin:1,cardMax:3,quoteProb:15,stickerProb:15,emojiProb:15,readOn:true,readProb:15,spliceOn:true,spliceProb:25,spliceMin:2,spliceMax:3,statusHours:6,statusProb:70,callProb:5,transferProb:5,xferMin:1,xferMax:520,momentPerDay:2,xferOn:true,decMin:3,decMax:10,decMulti:3,letPerDay:1,letReplyProb:80,letMin:20,letMax:120,letCardMin:3,letCardMax:5,momLikeProb:90,momCmtProb:60,momReplyProb:50,momReplyReplyProb:50};
+const DEF_CFG={muteKeep:true,auto:true,minDelay:2,maxDelay:6,cardMin:1,cardMax:3,quoteProb:15,stickerProb:15,emojiProb:15,readOn:true,readProb:15,spliceOn:true,spliceProb:25,spliceMin:2,spliceMax:3,statusHours:6,statusProb:70,callProb:5,transferProb:5,xferMin:1,xferMax:520,momentPerDay:2,xferOn:true,decMin:3,decMax:10,decMulti:3,letPerDay:1,letReplyProb:80,letMin:20,letMax:120,letCardMin:3,letCardMax:5,momLikeProb:90,momCmtProb:60,momReplyProb:50,momReplyReplyProb:50,patOn:true,patProb:10,patTexts:['拍了拍我','拍了拍我的脑袋','拍了拍我，说想我了'],myPatTexts:['拍了拍对方','拍了拍对方的脑袋'],patReplyProb:60};
 const T0=new Date().setHours(10,12,0,0);
 function mkDef(){
   const tx=['嗯嗯','我在呢','想你','乖','好呀','抱抱','我爱你','想你了','亲亲'],cards=tx.map((c,i)=>({id:i+1,type:'text',content:c,group:'public',enabled:true}));
@@ -469,7 +469,7 @@ function render(){
   D.msgs.forEach((m,mi)=>{
     const dk=new Date(m.t).toDateString();if(dk!==pd){o+=`<div class="dsep">${dlabel(m.t)}</div>`;pd=dk;prev=null}
     if(m.type==='read'){o+=`<div class="rd">已读 ${fmt(m.t)}</div>`;prev=null;return}
-    if(m.type==='sys'){o+=`<div class="sys">${esc(m.x)}</div>`;prev=null;return}
+    if(m.type==='sys'||m.type==='pat'){o+=`<div class="sys">${esc(m.x)}</div>`;prev=null;return}
     const first=!prev||prev.w!==m.w;prev=m;const tm=`<span class="t">${fmt(m.t)}</span>`;let b;
     if(m.type==='letter')b=envHtml(m);
     else if(m.type==='decide')b=decHtml(m);
@@ -506,6 +506,31 @@ function spliceText(first,used){
   cs.forEach((c,i)=>{const raw=String(c.content).trim(),core=raw.replace(/[。！？!?…，,、；;~～\s]+$/,'');if(!core)return;const end=raw.slice(core.length),last=i===cs.length-1;o+=core+(/[！!]/.test(end)?'！':/[？?]/.test(end)?'？':(last?'。':(Math.random()<.22?'。':'，')))});
   return o||null;
 }
+/* ===== 拍一拍：自动识别多种写法 =====
+   who='t' 对方拍我；who='m' 我拍对方
+   1) 含占位符 {我} {对方} {名字} {你} {TA} 等（也认 [] 【】 ｛｝）→ 当作完整句子，直接替换
+   2) 以引号、名字、「我」「对方」「TA」开头 → 当作完整句子，原样使用
+   3) 其余当作后半句，自动补上名字；「拍了拍你/对方/TA」会按视角自动换成我或对方的名字 */
+function fmtPat(raw,who){
+  let t=String(raw||'').trim();const me=(D.S&&D.S.myName)||'我',ot=(D.S&&D.S.name)||'对方';
+  if(!t)t=who==='t'?'拍了拍我':'拍了拍对方';
+  const PH=/[{｛\[【]\s*(我|自己|对方|你|名字|他|她|TA|ta|Ta|name|me)\s*[}｝\]】]/g;let had=false;
+  const sub=t.replace(PH,(m,k)=>{had=true;return /^(我|自己|me)$/.test(k)?me:ot});
+  if(had)return sub;
+  if(/^[“"「『‘']/.test(t)||t.startsWith(me)||t.startsWith(ot)||/^(我|对方|TA|ta|Ta|他|她|你)\s*(轻轻|偷偷|悄悄|狠狠|用力|又|再)?拍/.test(t))return t;
+  const tgtMe=/(你|对方|TA|ta|Ta|他|她|自己)/,Q=n=>'“'+n+'”';
+  if(who==='t'){t=t.replace(/^(.*?拍了拍)(对方|你|TA|ta|Ta|他|她)(?!们)/,(m,a)=>a+'我');return Q(ot)+' '+t}
+  t=t.replace(/^(.*?拍了拍)(对方|你|TA|ta|Ta|他|她)(?!们)/,(m,a)=>a+Q(ot)).replace(/^(.*?拍了拍)我(?!们)/,(m,a)=>a+Q(ot));
+  return '我'+t;
+}
+function myPat(){
+  if(typeof call!=='undefined'&&call)return;
+  const C=D.cfg,list=(Array.isArray(C.myPatTexts)?C.myPatTexts:[]).map(x=>String(x).trim()).filter(Boolean),tx=list.length?list[list.length*Math.random()|0]:'拍了拍对方';
+  if(navigator.vibrate)navigator.vibrate(12);
+  D.msgs.push({id:uid(),w:'m',type:'pat',x:fmtPat(tx,'m'),t:Date.now()});render();save();
+  if(D.cfg.auto&&!busy&&Math.random()*100<(C.patReplyProb==null?60:C.patReplyProb))auto();
+}
+let _avT=0;$('av').addEventListener('click',()=>{const n=Date.now();if(n-_avT<380){_avT=0;myPat()}else _avT=n});
 async function reply(){
   busy=true;const C=D.cfg;
   if(C.readOn!==false&&Math.random()*100<C.readProb){typing=true;render();await sleep(rnd(700,1600));typing=false;D.msgs.push({id:uid(),w:'t',type:'read',t:Date.now()});busy=false;render();save();return}
@@ -522,6 +547,11 @@ async function reply(){
   if(C.xferOn!==false&&Math.random()*100<C.transferProb&&!D.msgs.some(x=>x.w==='t'&&x.type==='pay'&&x.status==='pending')){
     typing=true;render();await sleep(rnd(700,1400));typing=false;const tp=pool(['text']);
     D.msgs.push({id:uid(),w:'t',type:'pay',x:Math.round(rnd(C.xferMin,Math.max(C.xferMin,C.xferMax))*100)/100,note:tp.length?String(tp[tp.length*Math.random()|0].content).trim().slice(0,12):'',status:'pending',t:Date.now()});render();save();
+  }
+  if(C.patOn!==false&&Math.random()*100<C.patProb){
+    typing=false;render();await sleep(rnd(600,1400));
+    const pt=(Array.isArray(C.patTexts)?C.patTexts:[]).map(x=>String(x).trim()).filter(Boolean),tx=pt.length?pt[pt.length*Math.random()|0]:'拍了拍我';
+    D.msgs.push({id:uid(),w:'t',type:'pat',x:fmtPat(tx,'t'),t:Date.now()});render();save();
   }
   typing=false;busy=false;render();save();
   if(!call&&Math.random()*100<C.callProb){await sleep(1500);incoming()}
@@ -660,7 +690,7 @@ $('fullExp').onclick=()=>{try{dl(fullSnapshot(),'完整网站备份_'+new Date()
 $('fullImp').onclick=()=>{const f=document.createElement('input');f.type='file';f.accept='.json,application/json';f.onchange=()=>{const file=f.files&&f.files[0];if(!file)return;const rd=new FileReader();rd.onload=()=>{try{
   const raw=JSON.parse(rd.result);if(!raw||raw.format!=='chat-full-backup'||raw.version!==1||!raw.data)throw new Error('format');
   const x=raw.data;if(!x.S||!x.cfg||!Array.isArray(x.msgs)||!Array.isArray(x.cards)||!Array.isArray(x.groups))throw new Error('shape');
-  modal('恢复完整备份',b=>b.append(h('div','','将覆盖当前聊天记录、头像、昵称、字卡库、信件、朋友圈和全部设置。建议先导出当前完整备份。')), [['取消'],['确认恢复',()=>{D=Object.assign(mkDef(),x);D.S={...mkDef().S,...x.S};D.cfg={...DEF_CFG,...x.cfg};D.groups=x.groups;D.cards=x.cards;D.msgs=x.msgs;D.letters=Array.isArray(x.letters)?x.letters:[];D.moments=Array.isArray(x.moments)?x.moments:[];D.logs=Array.isArray(x.logs)?x.logs:[];D.seq=Number(x.seq)||100;D.nextLet=Number(x.nextLet)||0;D.nextMom=Number(x.nextMom)||0;D.cards=D.cards.filter(c=>c&&c.type!=='pat');D.msgs=D.msgs.filter(m=>m&&m.type!=='pat');clearTimeout(saveT);kvSet('D',D).then(()=>{apply();render();$('pf').classList.remove('on');toast('完整备份恢复成功')});},'pr']]);
+  modal('恢复完整备份',b=>b.append(h('div','','将覆盖当前聊天记录、头像、昵称、字卡库、信件、朋友圈和全部设置。建议先导出当前完整备份。')), [['取消'],['确认恢复',()=>{D=Object.assign(mkDef(),x);D.S={...mkDef().S,...x.S};D.cfg={...DEF_CFG,...x.cfg};D.groups=x.groups;D.cards=x.cards;D.msgs=x.msgs;D.letters=Array.isArray(x.letters)?x.letters:[];D.moments=Array.isArray(x.moments)?x.moments:[];D.logs=Array.isArray(x.logs)?x.logs:[];D.seq=Number(x.seq)||100;D.nextLet=Number(x.nextLet)||0;D.nextMom=Number(x.nextMom)||0;D.cards=D.cards.filter(c=>c&&c.type!=='pat');clearTimeout(saveT);kvSet('D',D).then(()=>{apply();render();$('pf').classList.remove('on');toast('完整备份恢复成功')});},'pr']]);
  }catch(e){toast('备份文件无效或版本不兼容')}};rd.readAsText(file)};f.click()};
 $('factoryReset').onclick=()=>{modal('恢复网站初始状态',b=>{b.append(h('div','','这会清除全部聊天记录、双方头像、昵称与 ID、聊天背景、字卡自定义内容、信件、朋友圈、装扮及所有设置，并恢复默认字卡和默认设置。此操作不可撤销。建议先导出完整备份。'))},[['取消'],['确认恢复默认',()=>{if(!confirm('最后确认：确定清除这个网站的全部个人数据吗？'))return false;clearTimeout(saveT);if(call){clearInterval(call.tick);clearTimeout(call.to);call=null;$('call').classList.remove('on');$('cpill').hidden=true}D=mkDef();D.msgs=[];D.moments=[];D.letters=[];D.logs=[];D.nextLet=0;D.nextMom=0;kvSet('D',D).then(()=>{apply();render();$('pf').classList.remove('on');$('sheet').classList.remove('on');$('letPage').classList.remove('on');$('letView').classList.remove('on');$('letNew').classList.remove('on');$('momPage').classList.remove('on');$('setPage').classList.remove('on');toast('已恢复网站初始状态')});},'pr']])};
 /* ===== 回复设置 ===== */
@@ -670,6 +700,7 @@ const FIELDS=[
  ['已读不回','按概率只显示「已读」，不回字卡。',[B_('readOn','开启已读不回',''),P_('readProb','已读不回的概率','','readOn')]],
  ['拼字卡','几张文字字卡拼成一条长消息。',[B_('spliceOn','开启拼字卡',''),P_('spliceProb','拼字卡的概率','每条文字回复是否拼接','spliceOn'),C_('spliceMin','一次最少拼几句','',2,8,'句','spliceOn'),C_('spliceMax','一次最多拼几句','',2,8,'句','spliceOn')]],
  ['状态字卡','头像右上角的小气泡，由对方自己更换。到点后再按概率决定换不换，100% 就是每次必换。',[C_('statusHours','几小时换一次','',1,48,'小时'),P_('statusProb','到点真的换的概率','')]],
+ ['拍一拍','双击聊天顶部的头像，可以拍对方。内容有多种写法，会自动识别：只写「拍了拍我的脑袋」会自动补上名字；也可以写完整句，用 {我} {对方} 代替名字，例如「{对方}拍了拍{我}的肩膀」；写「拍了拍你」「拍了拍TA」会按视角自动换成对应的人。',[B_('patOn','开启拍一拍',''),P_('patProb','对方拍我的概率','每次回复后随机拍你的概率','patOn'),{k:'patTexts',l:'对方拍我的内容',hint:'随机选一条',t:'l',d:'patOn'},{k:'myPatTexts',l:'我拍对方的内容',hint:'双击头像时随机选一条',t:'l'},P_('patReplyProb','我拍他后他回应的概率','我拍完后，对方自动回消息的概率')]],
  ['通话','普通语音通话，接通后对方不会发字卡。',[P_('callProb','对方主动来电','每次回复后来电的概率')]],
  ['后台','手机上用。消息弹窗：页面在后台时，对方回消息、来信、来电会弹通知。保活：循环播放一段完全无声的音频，帮助浏览器保持页面运行。',[B_('notifOn','消息弹窗',''),{k:'testN',l:'测试通知',hint:'点一下立刻锁屏，5 秒后应收到一条通知',t:'a'},{k:'fullN',l:'全链路测试',hint:'点一下立刻锁屏，10 秒后对方发消息，应弹通知',t:'a'},B_('keepOn','后台保活',''),B_('coverOff','不带封面图','开启后锁屏播放卡片不带封面，iOS 就不会拿封面盖住你的壁纸')]],
  ['转账','关闭后，加号里没有转账，对方也不会转账给你。',[B_('xferOn','开启转账',''),P_('transferProb','对方发起转账','每次回复后转账的概率','xferOn'),M_('xferMin','最小金额','','xferOn'),M_('xferMax','最大金额','','xferOn')]],
@@ -681,6 +712,18 @@ function gRow(f){
   const v=D.cfg[f.k],lab=h('div','gl',f.l);if(f.hint)lab.append(h('small','',f.hint));
   if(f.t==='b'){const r=h('div','gr'),b=h('button','sw'+(v!==false?' on':''));b.setAttribute('role','switch');b.onclick=()=>{D.cfg[f.k]=!(D.cfg[f.k]!==false);b.classList.toggle('on',D.cfg[f.k]);save();deps();if(window.cfgHook)cfgHook(f.k)};r.append(lab,b);return r}
   if(f.t==='a'){if(window.nStatus){lab.querySelector('small').textContent='状态：'+nStatus()+(f.k==='testN'?'。点一下立刻锁屏，5 秒后应收到一条通知':'。点一下立刻锁屏，10 秒后对方发消息，应弹通知')}const r=h('div','gr'),b=h('button','stv','发送');b.onclick=()=>{if(f.k==='fullN'){if(window.fullTest)fullTest()}else if(window.testNotif)testNotif()};r.append(lab,b);return r}
+  if(f.t==='l'){const r=h('div','gr'),b=h('button','stv'),paint=()=>{b.textContent=(D.cfg[f.k]||[]).length+' 条'};
+    b.onclick=()=>{
+      modal(f.l,bd=>{
+        const box=h('div'),ls=h('div'),inp=h('input');inp.placeholder=f.k==='myPatTexts'?'例如：拍了拍对方的脑袋 / 我拍了拍{对方}':'例如：拍了拍我的脑袋 / {对方}拍了拍{我}';inp.maxLength=30;
+        const draw=()=>{ls.innerHTML='';(D.cfg[f.k]||[]).forEach((t,i)=>{const row=h('div'),x=h('button','','删除');row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid rgba(128,128,128,.25)';const sp=h('span','',t);sp.style.cssText='flex:1;word-break:break-all;font-size:15px';x.style.cssText='border:0;background:none;color:#ff3b30;font-size:14px';x.onclick=()=>{D.cfg[f.k].splice(i,1);save();paint();draw()};row.append(sp,x);ls.append(row)});if(!(D.cfg[f.k]||[]).length)ls.append(h('div','',f.k==='myPatTexts'?'还没有内容，会用「拍了拍对方」':'还没有内容，会用「拍了拍我」'))};
+        const add=()=>{const v=inp.value.trim();if(!v)return;if(!Array.isArray(D.cfg[f.k]))D.cfg[f.k]=[];D.cfg[f.k].push(v.slice(0,30));inp.value='';save();paint();draw()};
+        inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();add()}};
+        const ab=h('button','','添加');ab.onclick=add;const ar=h('div');ar.style.cssText='display:flex;gap:8px;margin-top:12px';inp.style.flex='1';ar.append(inp,ab);
+        ls.style.cssText='max-height:40vh;overflow:auto';box.append(ls,ar);bd.append(box);draw();
+      },[['完成',()=>{paint()},'pr']]);
+    };
+    paint();r.append(lab,b);if(f.d)r.dataset.d=f.d;return r}
   if(f.t==='p'){const r=h('div','gr col'),t=h('div','top'),pv=h('span','pv',v+'%'),sl=h('input','sl');sl.type='range';sl.min=0;sl.max=100;sl.step=5;sl.value=v;sl.style.setProperty('--p',v+'%');
     sl.oninput=()=>{D.cfg[f.k]=+sl.value;pv.textContent=sl.value+'%';sl.style.setProperty('--p',sl.value+'%');save()};t.append(lab,pv);r.append(t,sl);if(f.d)r.dataset.d=f.d;return r}
   const r=h('div','gr'),st=h('div','stp'),vb=h('button','stv'),bx=h('div','stb'),m=h('button','','−'),p=h('button','','+'),step=f.step||1;
@@ -936,7 +979,7 @@ function incoming(){
 }
 $('cAcc').onclick=()=>connect();$('cRej').onclick=()=>hang('已拒绝');
 /* ===== 启动 ===== */
-(async()=>{const d=await kvGet('D');if(d){D=Object.assign(mkDef(),d);D.cfg={...DEF_CFG,...(d.cfg||{})};D.S={...mkDef().S,...(d.S||{})}}D.cards=D.cards.filter(c=>c.type!=='pat');D.msgs=D.msgs.filter(m=>m.type!=='pat');apply();render();D.moments=D.moments||[];
+(async()=>{const d=await kvGet('D');if(d){D=Object.assign(mkDef(),d);D.cfg={...DEF_CFG,...(d.cfg||{})};D.S={...mkDef().S,...(d.S||{})}}D.cards=D.cards.filter(c=>c.type!=='pat');apply();render();D.moments=D.moments||[];
   D.letters=D.letters||[];D.letters.forEach(l=>{if(l.w==='m'&&l.rep==='wait')schedRep(l)});
   D.msgs.forEach(m=>{if(m.type==='decide'&&!m.ans)setTimeout(()=>resolveDec(m),Math.max(0,(m.at||0)-Date.now()))});
   D.msgs.forEach(m=>{if(m.type==='pay'&&m.w==='m'&&m.status==='pending'&&!m.keep&&Date.now()-m.t>60000)resolveXfer(m)});
